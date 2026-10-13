@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # The contract crosses repos: the catalog can break it with a push that this
+  # repo never sees. A daily run against the catalog's main catches that.
+  schedule:
+    - cron: "17 6 * * *"
+
+jobs:
+  launcher:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Python 3.9 is the floor update.py and install.py promise.
+          - os: ubuntu-latest
+            python: "3.9"
+          # macOS with the runner's own python3 (Homebrew's, not Apple's stub).
+          - os: macos-latest
+            python: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - if: matrix.python != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # The fast tests use a fake catalog; the end-to-end one clones the real
+      # catalog from GitHub into a throwaway HOME.
+      - name: Tests
+        run: npm test
+        env:
+          LOCAL_HERO_E2E: "1"
+
+      # The command users actually type, against this commit: npx resolving a
+      # GitHub spec is the part no unit test can stand in for. Not on pull
+      # requests, whose commit may live in a fork.
+      - name: npx github:… (this commit)
+        if: github.event_name != 'pull_request'
+        run: |
+          export HOME="$RUNNER_TEMP/home" XDG_DATA_HOME="$RUNNER_TEMP/data"
+          mkdir -p "$HOME"
+          npx --version
+          npx --yes "github:${{ github.repository }}#${{ github.sha }}" \
+            bootstrap --all --tool claude --on-conflict overwrite
+          npx --yes "github:${{ github.repository }}#${{ github.sha }}" check
+          npx --yes "github:${{ github.repository }}#${{ github.sha }}" update
