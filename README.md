@@ -14,9 +14,14 @@ npx github:jrodrigopuca/local-hero update                         # pull it and 
 (`--list`, `--all --tool <tool>`, `--agent <name>`, `--dry-run`…); see the
 catalog's [INSTALL.md](https://github.com/jrodrigopuca/local-agents/blob/main/INSTALL.md).
 
-**Requirements:** node 18+, git, Python 3.9+. No npm dependencies, no Python
-packages. macOS and Linux are tested in CI; Windows is not supported yet,
-because nobody has measured it.
+**Requirements:** node 24 or later (it ships npm 11), git, Python 3.9+. No npm
+dependencies, no Python packages. macOS and Linux are tested in CI; Windows is
+not supported yet, because nobody has measured it.
+
+Why node 24: `npx github:…` needs npm 11. npm 10, which ships with node 22 and
+earlier, fails inside npm with `GitFetcher requires an Arborist constructor to
+pack a tarball`, before local-hero gets to run (measured 2026-10-13). On an
+older node, upgrading npm (`npm install -g npm@11`) is enough.
 
 ## How it works
 

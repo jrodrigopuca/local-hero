@@ -16,19 +16,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Python 3.9 is the floor update.py and install.py promise.
+          # The floors: node 24 is the oldest that ships npm 11, which
+          # `npx github:` needs (npm 10 fails inside npm); Python 3.9 is what
+          # update.py and install.py promise. Pinned, so the floor stays
+          # tested when lts/* moves on — testing only the LTS is how
+          # `node --test test/` once shipped broken.
           - os: ubuntu-latest
             python: "3.9"
-            node: lts/*
-          # macOS with the runner's own python3 (Homebrew's, not Apple's stub).
+            node: "24"
+          # The current LTS, on macOS with the runner's own python3
+          # (Homebrew's, not Apple's stub).
           - os: macos-latest
             python: ""
             node: lts/*
-          # node 18 is the floor package.json promises. Only testing the LTS is
-          # how `node --test test/` shipped broken: it works on 26, not on 24.
-          - os: ubuntu-latest
-            python: "3.9"
-            node: "18"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
         run: |
           export HOME="$RUNNER_TEMP/home" XDG_DATA_HOME="$RUNNER_TEMP/data"
           mkdir -p "$HOME"
-          npx --version
+          echo "node $(node --version), npm $(npm --version)"
           npx --yes "github:${{ github.repository }}#${{ github.sha }}" \
             bootstrap --all --tool claude --on-conflict overwrite
           npx --yes "github:${{ github.repository }}#${{ github.sha }}" check
