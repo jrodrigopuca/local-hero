@@ -19,16 +19,23 @@ jobs:
           # Python 3.9 is the floor update.py and install.py promise.
           - os: ubuntu-latest
             python: "3.9"
+            node: lts/*
           # macOS with the runner's own python3 (Homebrew's, not Apple's stub).
           - os: macos-latest
             python: ""
+            node: lts/*
+          # node 18 is the floor package.json promises. Only testing the LTS is
+          # how `node --test test/` shipped broken: it works on 26, not on 24.
+          - os: ubuntu-latest
+            python: "3.9"
+            node: "18"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: ${{ matrix.node }}
 
       - if: matrix.python != ''
         uses: actions/setup-python@v5
