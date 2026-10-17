@@ -56,19 +56,22 @@ function findGit() {
   }
 }
 
-// `python3` first; `python` covers systems where only that name exists. An
-// old interpreter under one name does not stop the search under the other.
+// `python3` first; `python` covers systems where only that name exists, and
+// `py -3` is the launcher Windows installs (on Windows `python3` is often a
+// Microsoft Store stub that fails). An old interpreter under one name does not
+// stop the search under the other. Returns [command, ...leading args].
 function findPython() {
   const check = "import sys; print('%d.%d' % sys.version_info[:2])";
   const tooOld = [];
-  for (const cmd of ["python3", "python"]) {
-    const probe = spawnSync(cmd, ["-c", check], { encoding: "utf8" });
+  for (const candidate of [["python3"], ["python"], ["py", "-3"]]) {
+    const [cmd, ...lead] = candidate;
+    const probe = spawnSync(cmd, [...lead, "-c", check], { encoding: "utf8" });
     if (probe.error || probe.status !== 0) continue;
     const [major, minor] = probe.stdout.trim().split(".").map(Number);
     if (major > PYTHON_FLOOR[0] || (major === PYTHON_FLOOR[0] && minor >= PYTHON_FLOOR[1])) {
-      return cmd;
+      return candidate;
     }
-    tooOld.push(`\`${cmd}\` is ${major}.${minor}`);
+    tooOld.push(`\`${candidate.join(" ")}\` is ${major}.${minor}`);
   }
   const found = tooOld.length ? ` (${tooOld.join(", ")})` : "";
   fail(`Python ${PYTHON_FLOOR.join(".")}+ is required and none runs here${found}.${MAC_HINT}`, ERROR);
@@ -127,8 +130,13 @@ function sweepPartials(dir) {
   }
 }
 
+// Python's stdout follows the console code page on Windows (cp1252), which
+// cannot print every character update.py uses; force UTF-8.
+const PY_ENV = { ...process.env, PYTHONUTF8: "1" };
+
 function contractOf(python, updater) {
-  const probe = spawnSync(python, [updater, "--launcher-api"], { encoding: "utf8" });
+  const [cmd, ...lead] = python;
+  const probe = spawnSync(cmd, [...lead, updater, "--launcher-api"], { encoding: "utf8", env: PY_ENV });
   const n = Number((probe.stdout || "").trim());
   if (probe.status !== 0 || !Number.isInteger(n)) {
     fail(`\`update.py --launcher-api\` failed in ${path.dirname(updater)}:\n` +
@@ -169,8 +177,9 @@ function main() {
   const dir = managedDir();
   ensureClone(dir);
   checkContract(python, dir);
-  const run = spawnSync(python, [path.join(dir, "update.py"), ...process.argv.slice(2)],
-                        { stdio: "inherit" });
+  const [cmd, ...lead] = python;
+  const run = spawnSync(cmd, [...lead, path.join(dir, "update.py"), ...process.argv.slice(2)],
+                        { stdio: "inherit", env: PY_ENV });
   if (run.error) fail(`could not run update.py: ${run.error.message}`, ERROR);
   if (run.signal) {
     // The shell convention for "killed by signal N", so a caller can tell.
