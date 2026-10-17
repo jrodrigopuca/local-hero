@@ -229,3 +229,66 @@ test("end to end against the real catalog", { skip: process.env.LOCAL_HERO_E2E !
   const update = launch(box.env, "update");
   assert.strictEqual(update.status, 0, update.stderr);
 });
+
+// Runs the launcher with a real terminal on the other side (a pty) and reports
+// whether it was still waiting for the person after `waitSeconds`, then types
+// "q" and reports how it ended. Behaviour only, no wording: a menu waits for
+// an answer, a script-style message exits by itself.
+const PTY_DRIVER = [
+  "import json, os, pty, select, sys, time",
+  "node, launcher, wait = sys.argv[1], sys.argv[2], float(sys.argv[3])",
+  "pid, fd = pty.fork()",
+  "if pid == 0:",
+  "    os.execv(node, [node, launcher, *sys.argv[4:]])",
+  "deadline = time.time() + wait",
+  "while time.time() < deadline:",
+  "    if select.select([fd], [], [], 0.2)[0]:",
+  "        try: os.read(fd, 65536)",
+  "        except OSError: break",
+  "waiting = os.waitpid(pid, os.WNOHANG) == (0, 0)",
+  "if waiting:",
+  "    os.write(fd, b'q\\n')",
+  "    deadline = time.time() + 30",
+  "    while time.time() < deadline:",
+  "        done, status = os.waitpid(pid, os.WNOHANG)",
+  "        if done: break",
+  "        if select.select([fd], [], [], 0.2)[0]:",
+  "            try: os.read(fd, 65536)",
+  "            except OSError: pass",
+  "    else:",
+  "        os.kill(pid, 9); os.waitpid(pid, 0); status = -1",
+  "    code = os.waitstatus_to_exitcode(status) if status != -1 else -1",
+  "else:",
+  "    code = None",
+  "print(json.dumps({'waiting': waiting, 'exit': code}))",
+  "",
+].join("\n");
+
+test("bootstrap with nothing after it: a script gets the next steps, a person gets the menu",
+     { skip: process.env.LOCAL_HERO_E2E !== "1" }, () => {
+  const box = sandbox();
+  const stamp = path.join(box.home, ".claude", ".local-agents.json");
+
+  // No terminal (stdio is piped here, as in a script or CI): it must not wait
+  // for anyone, must succeed, and must install nothing.
+  const script = launch(box.env, "bootstrap");
+  assert.strictEqual(script.status, 0, script.stderr);
+  assert.ok(!fs.existsSync(stamp), "bootstrap with no arguments installed something");
+  assert.ok(fs.existsSync(path.join(box.clone, "update.py")), "the catalog was not cloned");
+  assert.ok(script.stdout.trim().length > 0, "it said nothing about what to do next");
+});
+
+test("bootstrap with nothing after it, in a terminal, waits for an answer",
+     { skip: process.env.LOCAL_HERO_E2E !== "1" || process.platform === "win32" }, () => {
+  const box = sandbox();
+  // Clone first, so the run below does not spend its wait on the network.
+  assert.strictEqual(launch(box.env, "bootstrap").status, 0);
+  const run = spawnSync("python3", ["-I", "-c", PTY_DRIVER, process.execPath, LAUNCHER, "4", "bootstrap"],
+                        { env: box.env, encoding: "utf8", timeout: 120000 });
+  assert.strictEqual(run.status, 0, run.stderr);
+  const seen = JSON.parse(run.stdout);
+  assert.strictEqual(seen.waiting, true, "with a terminal it exited instead of asking");
+  assert.strictEqual(seen.exit, 0, "answering q did not end cleanly");
+  assert.ok(!fs.existsSync(path.join(box.home, ".claude", ".local-agents.json")),
+            "quitting the menu installed something");
+});

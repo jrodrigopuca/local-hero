@@ -25,14 +25,16 @@ itself it cannot check, because it is a node program (see
 Nothing to install: `npx` runs it straight from this repo.
 
 ```bash
-npx github:jrodrigopuca/local-hero bootstrap --list                # first time: what is there, and which of your tools were detected
-npx github:jrodrigopuca/local-hero bootstrap --all --tool <tool>   # then install into the tool you use (claude, opencode, kiro, codex, antigravity, shared)
+npx github:jrodrigopuca/local-hero bootstrap                       # first time: a menu asks what to install and into which tool
+npx github:jrodrigopuca/local-hero bootstrap --all --tool <tool>   # or say it up front (claude, opencode, kiro, codex, antigravity, shared)
 npx github:jrodrigopuca/local-hero check                          # what changed upstream — writes nothing
 npx github:jrodrigopuca/local-hero update                         # pull it and refresh every install
 ```
 
-Not everyone has Claude Code: pick the `<tool>` you actually use. The examples
-below say `claude` only because it is one of the six.
+Not everyone has Claude Code: the menu lists the tools and marks the ones it
+found, and with flags you pick the `<tool>` you actually use. The examples below
+say `claude` only because it is one of the six. In a script or CI (no terminal)
+`bootstrap` does not ask; it prints the next commands to run.
 
 Or install it once and drop the prefix (the command is `local-hero`):
 
@@ -52,12 +54,14 @@ The three commands do different jobs:
 - **`bootstrap`** is the only one that *installs* something. It makes sure the
   catalog is cloned and then hands everything you typed after it to the
   catalog's `install.py`: which agents, which tool, what to do on a conflict.
+  Typed with nothing after it, it opens `install.py`'s menu instead.
 - **`check`** and **`update`** only look after what is *already installed*.
   `update` fast-forwards the catalog and then refreshes every tool that holds an
   install; with nothing installed there is nothing for it to refresh.
   `check` reports the same state and writes nothing.
 
-So the first run is `bootstrap` because you have to say what you want and where.
+So the first run is `bootstrap` because you have to say what you want and where
+(by answering the menu, or with flags).
 After that, `update` is enough: it remembers each install (a small
 `.local-agents.json` stamp in each tool's folder) and refreshes all of them.
 Running `check` before `bootstrap` is harmless; it says `installs none`.
