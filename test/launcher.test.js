@@ -182,8 +182,10 @@ test("end to end against the real catalog", { skip: process.env.LOCAL_HERO_E2E !
   const stamp = path.join(box.home, ".claude", ".local-agents.json");
   assert.ok(fs.existsSync(stamp), "bootstrap wrote no install stamp");
   assert.ok(!fs.existsSync(leftover), "a dead first run's side folder was not swept");
-  assert.strictEqual(fs.realpathSync(JSON.parse(fs.readFileSync(stamp, "utf8")).catalog_path),
-                     fs.realpathSync(box.clone), "the install is not stamped with the managed clone");
+  // .native: on Windows only it expands 8.3 short names (RUNNER~1), which the
+  // temp dir arrives in from one side and as "runneradmin" from the other.
+  assert.strictEqual(fs.realpathSync.native(JSON.parse(fs.readFileSync(stamp, "utf8")).catalog_path),
+                     fs.realpathSync.native(box.clone), "the install is not stamped with the managed clone");
   const check = launch(box.env, "check");
   assert.strictEqual(check.status, 0, check.stderr);
   const update = launch(box.env, "update");
