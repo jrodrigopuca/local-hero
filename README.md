@@ -25,10 +25,14 @@ itself it cannot check, because it is a node program (see
 Nothing to install: `npx` runs it straight from this repo.
 
 ```bash
-npx github:jrodrigopuca/local-hero bootstrap --all --tool claude   # first time
+npx github:jrodrigopuca/local-hero bootstrap --list                # first time: what is there, and which of your tools were detected
+npx github:jrodrigopuca/local-hero bootstrap --all --tool <tool>   # then install into the tool you use (claude, opencode, kiro, codex, antigravity, shared)
 npx github:jrodrigopuca/local-hero check                          # what changed upstream — writes nothing
 npx github:jrodrigopuca/local-hero update                         # pull it and refresh every install
 ```
+
+Not everyone has Claude Code: pick the `<tool>` you actually use. The examples
+below say `claude` only because it is one of the six.
 
 Or install it once and drop the prefix (the command is `local-hero`):
 
@@ -71,6 +75,10 @@ Running `check` before `bootstrap` is harmless; it says `installs none`.
 | `antigravity` | Antigravity CLI |
 | `shared` | `~/.agents`, skills read by both opencode and Codex |
 
+`bootstrap --list` marks each one `[available]` when its config folder was
+found on your machine, or `[not detected]` when it was not (you can still
+install into it).
+
 To equip a second tool, run `bootstrap` again with its key; `update` then
 refreshes both. The catalog is already cloned by then, so that run only installs.
 
@@ -85,8 +93,8 @@ npx github:jrodrigopuca/local-hero bootstrap --list
 
 ```
 Agents:
-  architect  — 3 skills: lh-design-review, lh-mentoring, lh-tradeoffs
-  qa         — 3 skills: lh-bug-reporting, lh-flow-hunting, lh-test-design
+  architect  — 3 own skills (7 installed with inheritance): lh-design-review, lh-mentoring, lh-tradeoffs
+  qa         — 3 own skills (…): lh-bug-reporting, lh-flow-hunting, lh-test-design
   …
 Skills: 48 total (address as agent:skill)
 
