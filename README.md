@@ -15,8 +15,8 @@ npx github:jrodrigopuca/local-hero update                         # pull it and 
 catalog's [INSTALL.md](https://github.com/jrodrigopuca/local-agents/blob/main/INSTALL.md).
 
 **Requirements:** node 24 or later (it ships npm 11), git, Python 3.9+. No npm
-dependencies, no Python packages. macOS and Linux are tested in CI; Windows is
-not supported yet, because nobody has measured it.
+dependencies, no Python packages. macOS, Linux and Windows are tested in CI. On
+Windows, Python is found as `python3`, `python` or the `py -3` launcher.
 
 Why node 24: `npx github:…` needs npm 11. npm 10, which ships with node 22 and
 earlier, fails inside npm with `GitFetcher requires an Arborist constructor to

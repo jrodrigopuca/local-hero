@@ -29,14 +29,10 @@ jobs:
           - os: macos-latest
             python: ""
             node: lts/*
-          # Windows is being measured, not promised: it may fail without
-          # failing the build until the README can say "supported".
           - os: windows-latest
             python: "3.12"
             node: lts/*
-            experimental: true
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.experimental == true }}
     steps:
       - uses: actions/checkout@v4
 

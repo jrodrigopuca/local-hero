@@ -33,10 +33,20 @@ function fail(message, code) {
   process.exit(code);
 }
 
-// On a Mac without the command line tools, `git` and `python3` are stubs that
-// fail until the tools are installed; "not on PATH" alone would mislead.
-const MAC_HINT = process.platform === "darwin"
-  ? " On macOS: `xcode-select --install`, or install it with Homebrew." : "";
+// How to get a missing tool, per platform. On a Mac without the command line
+// tools, `git` and `python3` are stubs that fail until the tools are installed;
+// "not on PATH" alone would mislead. Linux has too many package managers to
+// name one, so it says where to look instead of guessing a command.
+function installHint(tool) {
+  if (process.platform === "darwin") {
+    return " On macOS: `xcode-select --install`, or install it with Homebrew.";
+  }
+  if (process.platform === "win32") {
+    const id = tool === "git" ? "Git.Git" : "Python.Python.3.12";
+    return ` On Windows: \`winget install ${id}\`, then open a new terminal.`;
+  }
+  return " Install it with your distribution's package manager.";
+}
 
 // The XDG spec ignores a relative XDG_DATA_HOME; so does update.py.
 function managedDir() {
@@ -49,17 +59,21 @@ function git(...args) {
   return spawnSync("git", args, { encoding: "utf8", env: GIT_ENV });
 }
 
+// Both finders return a problem to report instead of exiting, so that a
+// machine missing git AND Python hears about both at once.
 function findGit() {
   const probe = git("--version");
   if (probe.error || probe.status !== 0) {
-    fail(`git is required and does not run here.${MAC_HINT}`, ERROR);
+    return `git is required and does not run here.${installHint("git")}`;
   }
+  return null;
 }
 
 // `python3` first; `python` covers systems where only that name exists, and
 // `py -3` is the launcher Windows installs (on Windows `python3` is often a
 // Microsoft Store stub that fails). An old interpreter under one name does not
-// stop the search under the other. Returns [command, ...leading args].
+// stop the search under the other. Returns { python: [command, ...leading
+// args] } or { problem }.
 function findPython() {
   const check = "import sys; print('%d.%d' % sys.version_info[:2])";
   const tooOld = [];
@@ -69,12 +83,13 @@ function findPython() {
     if (probe.error || probe.status !== 0) continue;
     const [major, minor] = probe.stdout.trim().split(".").map(Number);
     if (major > PYTHON_FLOOR[0] || (major === PYTHON_FLOOR[0] && minor >= PYTHON_FLOOR[1])) {
-      return candidate;
+      return { python: candidate };
     }
     tooOld.push(`\`${candidate.join(" ")}\` is ${major}.${minor}`);
   }
   const found = tooOld.length ? ` (${tooOld.join(", ")})` : "";
-  fail(`Python ${PYTHON_FLOOR.join(".")}+ is required and none runs here${found}.${MAC_HINT}`, ERROR);
+  return { problem: `Python ${PYTHON_FLOOR.join(".")}+ is required and none runs here${found}.` +
+                    installHint("python") };
 }
 
 // A clone counts only if it has a commit checked out and the catalog's
@@ -172,8 +187,10 @@ function checkContract(python, dir) {
 }
 
 function main() {
-  findGit();
-  const python = findPython();
+  const found = findPython();
+  const problems = [findGit(), found.problem].filter(Boolean);
+  if (problems.length) fail(problems.join("\nlocal-hero: "), ERROR);
+  const python = found.python;
   const dir = managedDir();
   ensureClone(dir);
   checkContract(python, dir);

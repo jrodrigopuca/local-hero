@@ -72,6 +72,44 @@ function launch(env, ...args) {
   return spawnSync(process.execPath, [LAUNCHER, ...args], { env, encoding: "utf8", timeout: 600000 });
 }
 
+// A PATH holding only the tools named, so the rest are "not installed". Not on
+// Windows: py.exe lives in the system folder, which is searched regardless.
+function withTools(box, ...tools) {
+  const bin = path.join(box.root, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  for (const tool of tools) {
+    const real = spawnSync("which", [tool], { encoding: "utf8" }).stdout.trim();
+    fs.symlinkSync(real, path.join(bin, tool));
+  }
+  return { ...box.env, PATH: bin };
+}
+const NO_PATH_GAMES = { skip: process.platform === "win32" };
+
+test("missing git is named, with how to get it", NO_PATH_GAMES, () => {
+  const box = sandbox();
+  const run = launch(withTools(box, "python3"), "check");
+  assert.strictEqual(run.status, 1);
+  assert.match(run.stderr, /git is required/);
+  assert.doesNotMatch(run.stderr, /Python/);
+  assert.match(run.stderr, /macOS|package manager/);
+});
+
+test("missing Python is named, with how to get it", NO_PATH_GAMES, () => {
+  const box = sandbox();
+  const run = launch(withTools(box, "git"), "check");
+  assert.strictEqual(run.status, 1);
+  assert.match(run.stderr, /Python 3\.9\+ is required/);
+  assert.doesNotMatch(run.stderr, /git is required/);
+});
+
+test("missing git and Python are both reported in one run", NO_PATH_GAMES, () => {
+  const box = sandbox();
+  const run = launch(withTools(box), "check");
+  assert.strictEqual(run.status, 1);
+  assert.match(run.stderr, /git is required/);
+  assert.match(run.stderr, /Python 3\.9\+ is required/);
+});
+
 test("passes every argument to update.py untouched and returns its exit code", () => {
   const box = sandbox();
   fakeCatalog(box, fakeUpdater(1));
