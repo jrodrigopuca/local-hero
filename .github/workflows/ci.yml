@@ -59,7 +59,10 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         run: |
-          export HOME="$RUNNER_TEMP/home" XDG_DATA_HOME="$RUNNER_TEMP/data"
+          # USERPROFILE too: on Windows, Python's home folder comes from it and
+          # ignores HOME, so with HOME alone the install landed in the runner's
+          # real profile (measured in local-agents' CI, B-076).
+          export HOME="$RUNNER_TEMP/home" USERPROFILE="$RUNNER_TEMP/home" XDG_DATA_HOME="$RUNNER_TEMP/data"
           mkdir -p "$HOME"
           echo "node $(node --version), npm $(npm --version)"
           npx --yes "github:${{ github.repository }}#${{ github.sha }}" \
