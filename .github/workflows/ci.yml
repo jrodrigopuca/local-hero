@@ -5,10 +5,6 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  # The contract crosses repos: the catalog can break it with a push that this
-  # repo never sees. A daily run against the catalog's main catches that.
-  schedule:
-    - cron: "17 6 * * *"
 
 jobs:
   launcher:
@@ -20,8 +16,10 @@ jobs:
           # `npx github:` needs (npm 10 fails inside npm); Python 3.9 is what
           # update.py and install.py promise. Pinned, so the floor stays
           # tested when lts/* moves on — testing only the LTS is how
-          # `node --test test/` once shipped broken.
-          - os: ubuntu-latest
+          # `node --test test/` once shipped broken. Ubuntu pinned too:
+          # setup-python has no 3.9 build for 26.04 (ubuntu-latest), only
+          # for 22.04 and 24.04.
+          - os: ubuntu-24.04
             python: "3.9"
             node: "24"
           # The current LTS, on macOS with the runner's own python3
