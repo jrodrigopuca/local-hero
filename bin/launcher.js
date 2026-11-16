@@ -25,6 +25,14 @@ const PYTHON_FLOOR = [3, 9];
 // Same exit codes as update.py, so a script around either one reads them alike.
 const ERROR = 1, REFUSED = 2, OFFLINE = 3;
 
+// How this launcher was typed, for whoever runs behind it: a message that
+// suggests a command can then suggest one the person is able to run. That is
+// all it says — its own name. npm sets npm_command=exec for a package run
+// through npx (measured, npm 12.2.2), and sets nothing for one installed
+// globally. A wrapper that already said its name is left alone.
+const FRONT = process.env.LOCAL_AGENTS_FRONT ||
+  (process.env.npm_command === "exec" ? `npx ${SELF}` : "local-hero");
+
 // A bad https URL would otherwise ask for a username and hang.
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
 
@@ -115,7 +123,7 @@ function ensureClone(dir) {
   }
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   const partial = `${dir}.partial-${process.pid}`;
-  process.stderr.write(`local-hero: cloning ${REPO_URL} → ${dir}\n`);
+  process.stderr.write(`local-hero: cloning ${REPO_URL} into ${dir}\n`);
   const clone = spawnSync("git", ["clone", "--quiet", "--filter=blob:none", REPO_URL, partial], {
     stdio: ["ignore", "inherit", "inherit"], env: GIT_ENV,
   });
@@ -147,7 +155,7 @@ function sweepPartials(dir) {
 
 // Python's stdout follows the console code page on Windows (cp1252), which
 // cannot print every character update.py uses; force UTF-8.
-const PY_ENV = { ...process.env, PYTHONUTF8: "1" };
+const PY_ENV = { ...process.env, PYTHONUTF8: "1", LOCAL_AGENTS_FRONT: FRONT };
 
 function contractOf(python, updater) {
   const [cmd, ...lead] = python;

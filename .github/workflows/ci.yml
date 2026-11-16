@@ -64,6 +64,7 @@ jobs:
           mkdir -p "$HOME"
           echo "node $(node --version), npm $(npm --version)"
           npx --yes "github:${{ github.repository }}#${{ github.sha }}" \
-            bootstrap --all --tool claude --on-conflict overwrite
+            install --all --tool claude --on-conflict overwrite
           npx --yes "github:${{ github.repository }}#${{ github.sha }}" check
           npx --yes "github:${{ github.repository }}#${{ github.sha }}" update
+          npx --yes "github:${{ github.repository }}#${{ github.sha }}" status

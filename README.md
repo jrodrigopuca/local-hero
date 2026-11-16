@@ -25,16 +25,19 @@ itself it cannot check, because it is a node program (see
 Nothing to install: `npx` runs it straight from this repo.
 
 ```bash
-npx github:jrodrigopuca/local-hero bootstrap                       # first time: a menu asks what to install and into which tool
-npx github:jrodrigopuca/local-hero bootstrap --all --tool <tool>   # or say it up front (claude, opencode, kiro, codex, antigravity, shared)
-npx github:jrodrigopuca/local-hero check                          # what changed upstream — writes nothing
-npx github:jrodrigopuca/local-hero update                         # pull it and refresh every install
+npx github:jrodrigopuca/local-hero install                       # first time: a menu asks what to install and into which tool
+npx github:jrodrigopuca/local-hero install --all --tool <tool>   # or say it up front (claude, opencode, kiro, codex, antigravity, shared)
+npx github:jrodrigopuca/local-hero check                         # is there something new upstream? writes nothing
+npx github:jrodrigopuca/local-hero update                        # bring it and refresh every install
+npx github:jrodrigopuca/local-hero status                        # what is installed on this machine, and whether it is current
+npx github:jrodrigopuca/local-hero uninstall                     # take out what was installed, and only that
 ```
 
-Not everyone has Claude Code: the menu lists the tools and marks the ones it
-found, and with flags you pick the `<tool>` you actually use. The examples below
-say `claude` only because it is one of the six. In a script or CI (no terminal)
-`bootstrap` does not ask; it prints the next commands to run.
+Not everyone has Claude Code: the menu lists the tools with the state of each,
+and with flags you pick the `<tool>` you actually use. The examples below say
+`claude` only because it is one of the six. In a script or CI (no terminal)
+`install` with nothing after it does not ask; it prints the next commands to
+run.
 
 Or install it once and drop the prefix (the command is `local-hero`):
 
@@ -47,24 +50,31 @@ A global install does not update itself; if local-hero says the catalog is
 newer than it is, re-run the `npm install -g` above, or use
 `npx --prefer-online github:jrodrigopuca/local-hero …`.
 
-### Why `bootstrap` the first time
+### The commands
 
-The three commands do different jobs:
+| Command | What it does |
+|---|---|
+| `install [ARGS]` | Installs. Makes sure the catalog is cloned, then hands everything after it to the catalog's `install.py`: which agents, which tool, what to do on a conflict. With nothing after it, it opens the menu |
+| `check` | Asks the remote whether there is something new for what you have installed. Writes nothing |
+| `update` | Brings the catalog up to date, then refreshes every tool that holds an install |
+| `status [--verbose]` | What is installed on this machine and whether it matches its copy of the catalog. No network |
+| `list` | What the catalog holds, and which tools were found |
+| `uninstall [ARGS]` | Removes what was installed, and only that: a file you edited, and anything that is not from the catalog, stays |
+| `default [ARGS]` | The agent a session starts with: `default --set generalist`, `default --restore` |
 
-- **`bootstrap`** is the only one that *installs* something. It makes sure the
-  catalog is cloned and then hands everything you typed after it to the
-  catalog's `install.py`: which agents, which tool, what to do on a conflict.
-  Typed with nothing after it, it opens `install.py`'s menu instead.
-- **`check`** and **`update`** only look after what is *already installed*.
-  `update` fast-forwards the catalog and then refreshes every tool that holds an
-  install; with nothing installed there is nothing for it to refresh.
-  `check` reports the same state and writes nothing.
+So the first run is `install`, because you have to say what you want and where
+(by answering the menu, or with flags). After that, `update` is enough: each
+install leaves a small record in its tool's folder (`.local-agents.json`), and
+`update` refreshes all of them. Running `check` before installing is harmless;
+it says nothing is installed yet, and how to install.
 
-So the first run is `bootstrap` because you have to say what you want and where
-(by answering the menu, or with flags).
-After that, `update` is enough: it remembers each install (a small
-`.local-agents.json` stamp in each tool's folder) and refreshes all of them.
-Running `check` before `bootstrap` is harmless; it says `installs none`.
+`status` and `check` answer two different questions. `status` is this machine
+against its own copy of the catalog: `out of date` there is fixed without the
+network. `check` is that copy against the remote: `update available` is what
+`update` brings.
+
+If a command is not recognized, the copy of the catalog on your machine is
+older than the command: run `update` once, and it is there.
 
 ### Which tools
 
@@ -79,82 +89,145 @@ Running `check` before `bootstrap` is harmless; it says `installs none`.
 | `antigravity` | Antigravity CLI |
 | `shared` | `~/.agents`, skills read by both opencode and Codex |
 
-`bootstrap --list` marks each one `[available]` when its config folder was
-found on your machine, or `[not detected]` when it was not (you can still
-install into it).
+`list` shows each one as `available` when its config folder was found on your
+machine, or `not detected` when it was not (you can still install into it; the
+menu asks first).
 
-To equip a second tool, run `bootstrap` again with its key; `update` then
+To equip a second tool, run `install` again with its key; `update` then
 refreshes both. The catalog is already cloned by then, so that run only installs.
 
 ### What it looks like
 
-See what is available before writing anything. `--list` shows the agents with
-their skills, and which tools were detected:
+See what is available before writing anything. `list` shows the agents with
+their skills, and which tools were found:
 
 ```bash
-npx github:jrodrigopuca/local-hero bootstrap --list
+npx github:jrodrigopuca/local-hero list
 ```
 
 ```
-Agents:
-  architect  — 3 own skills (7 installed with inheritance): lh-design-review, lh-mentoring, lh-tradeoffs
-  qa         — 3 own skills (…): lh-bug-reporting, lh-flow-hunting, lh-test-design
-  …
-Skills: 48 total (address as agent:skill)
+Agents (15)
+  apple-dev        4 skills of its own, 22 installed with it
+                   lh-code-review, lh-debugging, lh-shipping,
+                   lh-state-architecture
+  architect        3 skills of its own, 7 installed with it
+                   lh-design-review, lh-mentoring, lh-tradeoffs
+  ...
 
-Tools:
-  claude       Claude Code    [available, agents+skills]
-  …
+Tools
+  claude        available       agents and skills
+  opencode      not detected    agents and skills
+  ...
 ```
 
-Preview one agent with `--dry-run`, which changes nothing:
+Preview one agent with `--dry-run`, which changes nothing and says so twice:
 
 ```bash
-npx github:jrodrigopuca/local-hero bootstrap --agent architect --tool claude --dry-run
+npx github:jrodrigopuca/local-hero install --agent architect --tool claude --dry-run
 ```
 
 ```
-=== DRY RUN — no files will be written ===
+Dry run: nothing is written.
 
-  Installing agent 'architect' → Claude Code
-    deps   → inherits (reasoning inlined): generalist
-    skill  → ~/.claude/skills/lh-design-review
-    skill  → ~/.claude/skills/lh-mentoring
-    …
-    agent  → ~/.claude/agents/architect.md
-    stamp  → .local-agents.json @ fc0d994
+Installing agent architect into claude (~/.claude)
+
+  skills   would install 7
+  agents   would install 1
+
+Done (dry run): would install 8 files in claude.
+Dry run: nothing was written. Run again without --dry-run to apply.
 ```
 
-Then install the whole suite (every agent and skill) and check on it later:
+Then install the whole catalog (every agent and skill) and check on it later:
 
 ```bash
-npx github:jrodrigopuca/local-hero bootstrap --all --tool claude
+npx github:jrodrigopuca/local-hero install --all --tool claude
 npx github:jrodrigopuca/local-hero check
 ```
 
 ```
-catalog  ~/.local/share/local-agents
-remote   origin/main @ fc0d994
-clone    up to date
-installs claude: up to date
+Installing the whole catalog into claude (~/.claude)
+
+  skills   51 installed
+  agents   15 installed
+
+Done: 66 files installed in claude, from catalog fda9f5b.
+Check any time: npx github:jrodrigopuca/local-hero status
 ```
 
-Agents reference each other, so `--all` is the recommended install; a single
-`--agent` also pulls in the agents and skills it depends on, as the dry run
-above shows. Other flags worth knowing: `--project` installs into a project
-checkout instead of your home folder (the setup travels with the repo), and
-`--status` shows what each tool holds and whether it is current.
+```
+Everything installed is up to date.
 
-`bootstrap` takes the same arguments as the catalog's `install.py`
-(`--list`, `--all --tool <tool>`, `--agent <name>`, `--dry-run`…); see the
-catalog's [INSTALL.md](https://github.com/jrodrigopuca/local-agents/blob/main/INSTALL.md).
+  claude        up to date      15 agents, 51 skills
+
+Catalog fda9f5b, same as origin/main.
+```
+
+When the remote has something for what you installed, `check` says so first
+and names it, and its last line is the command to run:
+
+```
+An update is available.
+
+  upstream    origin/main @ fc0d994
+              your catalog is 2 commits behind
+  changes     skill lh-verification, agent qa
+
+  claude        update available
+
+Next: npx github:jrodrigopuca/local-hero update
+```
+
+Every command the output suggests is one you can type as it is: it starts with
+`npx github:jrodrigopuca/local-hero` when you came in through `npx`, and with
+`local-hero` when you installed it globally.
+
+Agents reference each other, so `--all` is the recommended install; a single
+`--agent` also pulls in the skills it depends on, as the dry run above counts.
+Other flags worth knowing: `--project` installs into a project checkout
+instead of your home folder (the setup travels with the repo), and `--verbose`
+prints one line per file.
+
+`install` takes the same arguments as the catalog's `install.py`
+(`--all --tool <tool>`, `--agent <name>`, `--dry-run`…); see the catalog's
+[INSTALL.md](https://github.com/jrodrigopuca/local-agents/blob/main/INSTALL.md).
+
+### Taking it back out
+
+```bash
+npx github:jrodrigopuca/local-hero uninstall --dry-run     # what would go, nothing removed
+npx github:jrodrigopuca/local-hero uninstall               # every tool that holds an install
+npx github:jrodrigopuca/local-hero uninstall --tool kiro   # only that one
+```
+
+It removes what was installed and is still as it was installed. A file you
+edited since is kept, and named; anything that did not come from the catalog
+is not touched. What it leaves on the machine is the copy of the catalog
+itself, and it says where: delete `~/.local/share/local-agents` to remove
+that too.
+
+### The agent a session starts with
+
+A session started without an agent uses the tool's own assistant, which loads
+nothing from the catalog. `default` makes one of the installed agents the one
+a session starts with, in the tools that have such a setting (Claude Code,
+opencode, Kiro CLI), and puts it back:
+
+```bash
+npx github:jrodrigopuca/local-hero default                    # what each tool starts with now
+npx github:jrodrigopuca/local-hero default --set generalist
+npx github:jrodrigopuca/local-hero default --restore
+```
+
+It is never done by `install`: which agent a session starts with is your
+choice.
 
 ### Help
 
 The help comes from the catalog, since local-hero passes everything through:
-`local-hero --help` lists the commands (its heading says `update.py`), and
-`local-hero bootstrap --help` lists every install option. On a machine that has
-never run local-hero, either one clones the catalog first.
+`local-hero --help` lists the commands, and `local-hero install --help` lists
+every install option. Both are headed by the command as you typed it. On a
+machine that has never run local-hero, either one clones the catalog first.
 
 ### node too old
 
@@ -184,16 +257,20 @@ local-hero is a shim, on purpose. It does four things and nothing else:
    one, and it tells you how to run a current one
    (`npx --prefer-online github:jrodrigopuca/local-hero …`);
 4. runs the catalog's `update.py` with your arguments **exactly as you typed
-   them**, and exits with its exit code.
+   them**, and exits with its exit code. It tells it one thing about itself:
+   how it was typed (`npx github:jrodrigopuca/local-hero`, or `local-hero`
+   when installed globally), in `LOCAL_AGENTS_FRONT`, so that a command the
+   catalog suggests is one you can run.
 
 Everything else — which clone your installs came from, what changed, when to
 refuse, how to install — lives in the catalog's `update.py`, versioned with
 the catalog it updates. local-hero holds no catalog logic: no agent names, no
-hosts, no `install.py` flags (a test enforces it). So a new `update.py`
-subcommand works here without a new local-hero.
+hosts, no `install.py` flags, no command names (a test enforces it). So a new
+`update.py` command works here without a new local-hero: `status`, `list`,
+`uninstall` and `default` arrived that way.
 
 If you installed from your own clone of the catalog, `update` still works on
-that clone: `update.py` finds it through the install stamps, and refuses to
+that clone: `update.py` finds it through the install records, and refuses to
 touch it if it has uncommitted changes or unpushed commits.
 
 ## The contract with the catalog
@@ -204,6 +281,10 @@ a new contract number, and a new local-hero.
 
 Exit codes are the catalog's: `0` done · `1` error · `2` refused, nothing
 touched · `3` the remote could not be reached.
+
+`LOCAL_AGENTS_FRONT` is not part of the contract: a catalog that does not
+know it ignores it, and a launcher that does not set it gets suggestions with
+the command alone (`` `update` ``) instead of the whole line.
 
 ## Development
 

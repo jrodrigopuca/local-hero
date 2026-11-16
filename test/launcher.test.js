@@ -3,9 +3,11 @@
 // need no network and test only what the launcher owns: passing arguments
 // through untouched, returning the exit code, keeping its clone whole and on
 // the contract it speaks. The end-to-end one clones the REAL catalog from
-// GitHub and runs bootstrap, check and update through the launcher; it runs
-// when LOCAL_HERO_E2E=1 (CI sets it), and asserts exit codes and the install
-// stamp, never update.py's wording, which belongs to the catalog.
+// GitHub and runs install, check, update, status and uninstall through the
+// launcher; it runs when LOCAL_HERO_E2E=1 (CI sets it), and asserts exit codes
+// and the install record, never update.py's wording, which belongs to the
+// catalog. The one thing it reads from the output is whether a suggested
+// command starts the way this launcher was typed: that is the launcher's half.
 "use strict";
 
 const { test } = require("node:test");
@@ -113,10 +115,51 @@ test("missing git and Python are both reported in one run", NO_PATH_GAMES, () =>
 test("passes every argument to update.py untouched and returns its exit code", () => {
   const box = sandbox();
   fakeCatalog(box, fakeUpdater(1));
-  const args = ["bootstrap", "--all", "--tool", "claude", "--", "a b", "--weird=1"];
+  const args = ["install", "--all", "--tool", "claude", "--", "a b", "--weird=1"];
   const run = launch(box.env, ...args);
   assert.strictEqual(run.status, 7, run.stderr);
   assert.deepStrictEqual(JSON.parse(run.stdout), args);
+});
+
+// update.py that prints how it was told the launcher was typed.
+function frontEcho() {
+  return [
+    "import os, sys",
+    "if sys.argv[1:] == ['--launcher-api']:",
+    "    print('1'); sys.exit(0)",
+    "print(os.environ.get('LOCAL_AGENTS_FRONT', '(unset)'))",
+    "",
+  ].join("\n");
+}
+
+function frontSeenBy(extra) {
+  const box = sandbox();
+  fakeCatalog(box, frontEcho());
+  const env = { ...box.env, ...extra };
+  for (const [k, v] of Object.entries(extra)) if (v === undefined) delete env[k];
+  const run = launch(env, "status");
+  assert.strictEqual(run.status, 0, run.stderr);
+  return run.stdout.trim();
+}
+
+// The catalog suggests commands ("Try: … update"). It can only suggest one the
+// person is able to type if the launcher says how it was typed.
+test("run through npx, it says so to what it runs", () => {
+  assert.strictEqual(frontSeenBy({ npm_command: "exec", LOCAL_AGENTS_FRONT: undefined }),
+                     "npx github:jrodrigopuca/local-hero");
+});
+
+test("installed globally, it is its own name", () => {
+  assert.strictEqual(frontSeenBy({ npm_command: undefined, LOCAL_AGENTS_FRONT: undefined }),
+                     "local-hero");
+  // inside someone's `npm run`, it was still typed as local-hero
+  assert.strictEqual(frontSeenBy({ npm_command: "run-script", LOCAL_AGENTS_FRONT: undefined }),
+                     "local-hero");
+});
+
+test("a wrapper that already said its name is left alone", () => {
+  assert.strictEqual(frontSeenBy({ npm_command: "exec", LOCAL_AGENTS_FRONT: "my-wrapper" }),
+                     "my-wrapper");
 });
 
 test("an older contract in its own clone is fixed by fast-forwarding the clone", () => {
@@ -204,7 +247,7 @@ test("the launcher holds no catalog logic", () => {
     assert.ok(!lower.includes(word), `launcher code mentions \`${word}\``);
   }
   // Interpreting a subcommand would show up as its name in a string literal.
-  for (const sub of ["bootstrap", "check", "update"]) {
+  for (const sub of ["install", "check", "update", "status", "list", "uninstall", "default"]) {
     assert.ok(!new RegExp(`["'\`]${sub}["'\`]`).test(source), `launcher code handles \`${sub}\``);
   }
 });
@@ -215,10 +258,10 @@ test("end to end against the real catalog", { skip: process.env.LOCAL_HERO_E2E !
   // process is gone. A successful clone sweeps it.
   const leftover = `${box.clone}.partial-999999`;
   fs.mkdirSync(path.join(leftover, ".git"), { recursive: true });
-  const boot = launch(box.env, "bootstrap", "--all", "--tool", "claude", "--on-conflict", "overwrite");
+  const boot = launch(box.env, "install", "--all", "--tool", "claude", "--on-conflict", "overwrite");
   assert.strictEqual(boot.status, 0, boot.stderr);
   const stamp = path.join(box.home, ".claude", ".local-agents.json");
-  assert.ok(fs.existsSync(stamp), "bootstrap wrote no install stamp");
+  assert.ok(fs.existsSync(stamp), "install wrote no install record");
   assert.ok(!fs.existsSync(leftover), "a dead first run's side folder was not swept");
   // .native: on Windows only it expands 8.3 short names (RUNNER~1), which the
   // temp dir arrives in from one side and as "runneradmin" from the other.
@@ -228,6 +271,15 @@ test("end to end against the real catalog", { skip: process.env.LOCAL_HERO_E2E !
   assert.strictEqual(check.status, 0, check.stderr);
   const update = launch(box.env, "update");
   assert.strictEqual(update.status, 0, update.stderr);
+  // The verbs that are the catalog's own scripts go through the same way.
+  const status = launch({ ...box.env, npm_command: "exec" }, "status");
+  assert.strictEqual(status.status, 0, status.stderr);
+  assert.ok(status.stdout.includes("npx github:jrodrigopuca/local-hero status"),
+            `a suggested command does not start the way the launcher was typed:\n${status.stdout}`);
+  const uninstall = launch(box.env, "uninstall");
+  assert.strictEqual(uninstall.status, 0, uninstall.stderr);
+  assert.ok(!fs.existsSync(stamp), "uninstall left the install record");
+  assert.ok(fs.existsSync(path.join(box.clone, "update.py")), "uninstall took the catalog copy too");
 });
 
 // Runs the launcher with a real terminal on the other side (a pty) and reports
@@ -264,26 +316,26 @@ const PTY_DRIVER = [
   "",
 ].join("\n");
 
-test("bootstrap with nothing after it: a script gets the next steps, a person gets the menu",
+test("install with nothing after it: a script gets the next steps, a person gets the menu",
      { skip: process.env.LOCAL_HERO_E2E !== "1" }, () => {
   const box = sandbox();
   const stamp = path.join(box.home, ".claude", ".local-agents.json");
 
   // No terminal (stdio is piped here, as in a script or CI): it must not wait
   // for anyone, must succeed, and must install nothing.
-  const script = launch(box.env, "bootstrap");
+  const script = launch(box.env, "install");
   assert.strictEqual(script.status, 0, script.stderr);
-  assert.ok(!fs.existsSync(stamp), "bootstrap with no arguments installed something");
+  assert.ok(!fs.existsSync(stamp), "install with no arguments installed something");
   assert.ok(fs.existsSync(path.join(box.clone, "update.py")), "the catalog was not cloned");
   assert.ok(script.stdout.trim().length > 0, "it said nothing about what to do next");
 });
 
-test("bootstrap with nothing after it, in a terminal, waits for an answer",
+test("install with nothing after it, in a terminal, waits for an answer",
      { skip: process.env.LOCAL_HERO_E2E !== "1" || process.platform === "win32" }, () => {
   const box = sandbox();
   // Clone first, so the run below does not spend its wait on the network.
-  assert.strictEqual(launch(box.env, "bootstrap").status, 0);
-  const run = spawnSync("python3", ["-I", "-c", PTY_DRIVER, process.execPath, LAUNCHER, "4", "bootstrap"],
+  assert.strictEqual(launch(box.env, "install").status, 0);
+  const run = spawnSync("python3", ["-I", "-c", PTY_DRIVER, process.execPath, LAUNCHER, "4", "install"],
                         { env: box.env, encoding: "utf8", timeout: 120000 });
   assert.strictEqual(run.status, 0, run.stderr);
   const seen = JSON.parse(run.stdout);

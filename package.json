@@ -1,6 +1,6 @@
 {
   "name": "local-hero",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Installs and updates the local-agents catalog (agents + skills) for Claude Code, opencode, Kiro, Codex and Antigravity.",
   "bin": {
     "local-hero": "bin/launcher.js"
